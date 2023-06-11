@@ -1,0 +1,50 @@
+<?php
+
+namespace App\Http\Controllers\API\V1\Dashboard;
+
+use App\Http\Controllers\Controller;
+use App\Http\Resources\OrderCollection;
+use App\Models\Order;
+use Illuminate\Http\Request;
+
+class CustomerOrdersController extends Controller
+{
+    /**
+     * Handle the incoming request.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function __invoke(Request $request , $id)
+    {
+        $start = $request->start;
+        $end = $request->end;
+        $countRow = $request->countRow;
+        $ordersVendor = Order::where('customer_id' , $id)->
+        filter([
+            'status' => $request->status,
+            'type' => $request->type,
+        ])
+        ->when($start, function ($query) use ($start, $end) {
+            $query->whereBetween('created_at', [$start, $end]);
+        })->with('vendor')
+        ->latest()->paginate($countRow ?? 15);
+
+        $data = [
+            'orders_count' => $ordersVendor->count(),
+            'orders_sum_total' => $ordersVendor->sum('total'),
+            'orders_sum_time' => $ordersVendor->sum('time'),
+            'orders_avg_time' => $ordersVendor->avg('time'),
+            'orders' => new OrderCollection($ordersVendor),
+            'pages' => [
+                'current_page' => $ordersVendor->currentPage(),
+                'total' => $ordersVendor->total(),
+                'page_size' => $ordersVendor->perPage(),
+                'next_page' => $ordersVendor->nextPageUrl(),
+                'last_page' => $ordersVendor->lastPage(),
+            ]
+        ];
+
+        return parent::success($data , 'تمت العملية بنجاح');
+    }
+}
